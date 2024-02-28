@@ -2,6 +2,7 @@ package com.nayoon.stock_service.controller;
 
 import com.nayoon.stock_service.controller.dto.StockResponseDto;
 import com.nayoon.stock_service.service.StockService;
+import java.util.concurrent.ExecutionException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

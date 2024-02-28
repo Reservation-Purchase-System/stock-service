@@ -25,33 +25,17 @@ public class Stock {
   @Column(name = "product_id", updatable = false)
   private Long productId;
 
-  @Column(name = "stock", nullable = false)
-  private Integer stock;
-
   @Column(name = "initial_stock", nullable = false)
   private Integer initialStock;
 
   @Builder
-  public Stock(Long productId, Integer stock, Integer initialStock) {
+  public Stock(Long productId, Integer initialStock) {
     this.productId = productId;
-    this.stock = stock;
     this.initialStock = initialStock;
-  }
-
-  public void increase(Integer orderQuantity) {
-    this.stock += orderQuantity;
-  }
-
-  public void decrease(Integer orderQuantity) {
-    this.stock -= orderQuantity;
   }
 
   public void updateInitialStock(Integer initialStock) {
     this.initialStock = initialStock;
-  }
-
-  public void updateStock(Integer stock) {
-    this.stock = stock;
   }
 
 }
