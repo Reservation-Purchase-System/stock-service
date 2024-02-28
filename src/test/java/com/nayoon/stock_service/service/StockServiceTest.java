@@ -13,6 +13,7 @@ import com.nayoon.stock_service.common.exception.ErrorCode;
 import com.nayoon.stock_service.entity.Stock;
 import com.nayoon.stock_service.repository.StockRepository;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,9 @@ class StockServiceTest {
   @Mock
   private PurchaseClient purchaseClient;
 
+  @Mock
+  private RedisService redisService;
+
   @Nested
   @DisplayName("재고 생성")
   class create {
@@ -45,10 +49,10 @@ class StockServiceTest {
       Integer initialStock = 100;
       Integer remainingStock = 0;
 
-      Stock stock = mockStock(productId, remainingStock, initialStock);
+      Stock stockEntity = mockStock(productId, initialStock);
 
       when(stockRepository.existsByProductId(productId)).thenReturn(false);
-      when(stockRepository.save(any())).thenReturn(stock);
+      when(stockRepository.save(any())).thenReturn(stockEntity);
 
       //when
       Integer result = stockService.createOrUpdate(productId, initialStock);
@@ -72,15 +76,14 @@ class StockServiceTest {
       Long productId = 1L;
       Integer oldStock = 300;
       Integer newStock = 100;
-      Integer remainingStock = 0;
 
-      Stock existingStock = mockStock(productId, remainingStock, oldStock);
-      Stock stock = mockStock(productId, remainingStock, newStock);
+      Stock existingStockHistory = mockStock(productId, oldStock);
+      Stock stockEntity = mockStock(productId, newStock);
 
       when(stockRepository.existsByProductId(productId)).thenReturn(true);
       when(stockRepository.findByProductId(productId)).thenReturn(
-          Optional.ofNullable(existingStock));
-      when(stockRepository.save(any())).thenReturn(stock);
+          Optional.ofNullable(existingStockHistory));
+      when(stockRepository.save(any())).thenReturn(stockEntity);
       when(purchaseClient.getQuantitySumByProductId(productId)).thenReturn(10);
 
       //when
@@ -94,34 +97,13 @@ class StockServiceTest {
     }
 
     @Test
-    @DisplayName("실패: 재고 정보 찾을 수 없음")
-    void stockNotFound() {
-      //given
-      Long productId = 1L;
-      Integer newStock = 100;
-
-      when(stockRepository.existsByProductId(productId)).thenReturn(true);
-      //when
-      CustomException exception = assertThrows(CustomException.class, ()
-          -> stockService.createOrUpdate(productId, newStock));
-
-      //then
-      assertEquals(ErrorCode.STOCK_NOT_FOUND, exception.getErrorCode());
-    }
-
-    @Test
     @DisplayName("실패: 결제 프로세스의 합보다 재고가 작을 수 없음")
     void invalidNewStock() {
       //given
       Long productId = 1L;
-      Integer oldStock = 300;
       Integer newStock = 5;
-      Integer remainingStock = 0;
-      Stock existingStock = mockStock(productId, remainingStock, oldStock);
 
       when(stockRepository.existsByProductId(productId)).thenReturn(true);
-      when(stockRepository.findByProductId(productId)).thenReturn(
-          Optional.ofNullable(existingStock));
       when(purchaseClient.getQuantitySumByProductId(productId)).thenReturn(10);
 
       //when
@@ -146,17 +128,19 @@ class StockServiceTest {
       Integer quantity = 5;
       Integer remainingStock = 0;
       Integer initialStock = 10;
-      Stock stock = mockStock(productId, remainingStock, initialStock);
+      Stock stockEntity = mockStock(productId, initialStock);
 
+      stockRepository.save(stockEntity);
       when(stockRepository.findByProductId(productId)).thenReturn(
-          Optional.ofNullable(stock));
+          Optional.of(stockEntity));
+      when(redisService.keyExists(productId)).thenReturn(true);
+      when(redisService.getValue(productId)).thenReturn(remainingStock);
 
       //when
-      Integer result = stockService.increaseStock(productId, quantity);
+      stockService.increaseStock(productId, quantity);
 
       //then
       verify(stockRepository, times(1)).findByProductId(productId);
-      assertEquals(quantity, result);
     }
 
     @Test
@@ -165,12 +149,11 @@ class StockServiceTest {
       //given
       Long productId = 1L;
       Integer quantity = 5;
-      Integer remainingStock = 0;
       Integer initialStock = 1;
-      Stock stock = mockStock(productId, remainingStock, initialStock);
+      Stock stockEntity = mockStock(productId, initialStock);
 
       when(stockRepository.findByProductId(productId)).thenReturn(
-          Optional.ofNullable(stock));
+          Optional.ofNullable(stockEntity));
 
       //when
       CustomException exception = assertThrows(CustomException.class, ()
@@ -192,19 +175,17 @@ class StockServiceTest {
       //given
       Long productId = 1L;
       Integer quantity = 5;
-      Integer remainingStock = 5;
       Integer initialStock = 10;
-      Stock stock = mockStock(productId, remainingStock, initialStock);
+      Stock stockEntity = mockStock(productId, initialStock);
 
       when(stockRepository.findByProductId(productId)).thenReturn(
-          Optional.ofNullable(stock));
+          Optional.ofNullable(stockEntity));
 
       //when
-      Integer result = stockService.decreaseStock(productId, quantity);
+      stockService.decreaseStock(productId, quantity);
 
       //then
       verify(stockRepository, times(1)).findByProductId(productId);
-      assertEquals(remainingStock - quantity, result);
     }
 
     @Test
@@ -213,12 +194,9 @@ class StockServiceTest {
       //given
       Long productId = 1L;
       Integer quantity = 5;
-      Integer remainingStock = 0;
-      Integer initialStock = 10;
-      Stock stock = mockStock(productId, remainingStock, initialStock);
 
-      when(stockRepository.findByProductId(productId)).thenReturn(
-          Optional.ofNullable(stock));
+      when(redisService.keyExists(productId)).thenReturn(true);
+      when(redisService.getValue(productId)).thenReturn(0);
 
       //when
       CustomException exception = assertThrows(CustomException.class, ()
@@ -230,10 +208,9 @@ class StockServiceTest {
 
   }
 
-  private Stock mockStock(Long productId, Integer stock, Integer initialStock) {
+  private Stock mockStock(Long productId, Integer initialStock) {
     return Stock.builder()
         .productId(productId)
-        .stock(stock)
         .initialStock(initialStock)
         .build();
   }
