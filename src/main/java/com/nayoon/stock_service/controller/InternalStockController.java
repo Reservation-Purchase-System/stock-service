@@ -1,11 +1,13 @@
 package com.nayoon.stock_service.controller;
 
+import com.nayoon.stock_service.common.lock.StockLock;
 import com.nayoon.stock_service.service.StockService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,7 +34,8 @@ public class InternalStockController {
   /**
    * 상품 재고 증가
    */
-  @PostMapping("/increase")
+  @PutMapping("/increase")
+//  @StockLock
   public ResponseEntity<Void> increaseProductStock(
       @RequestParam(name = "id") Long productId,
       @RequestParam(name = "quantity") Integer quantity
@@ -44,7 +47,8 @@ public class InternalStockController {
   /**
    * 상품 재고 감소
    */
-  @PostMapping("/decrease")
+  @PutMapping("/decrease")
+//  @StockLock
   public ResponseEntity<Void> decreaseProductStock(
       @RequestParam(name = "id") Long productId,
       @RequestParam(name = "quantity") Integer quantity

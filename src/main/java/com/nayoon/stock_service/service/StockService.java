@@ -5,74 +5,76 @@ import com.nayoon.stock_service.common.exception.CustomException;
 import com.nayoon.stock_service.common.exception.ErrorCode;
 import com.nayoon.stock_service.entity.Stock;
 import com.nayoon.stock_service.repository.StockRepository;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.CachePut;
-import org.springframework.cache.annotation.Cacheable;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class StockService {
 
   private final StockRepository stockRepository;
   private final PurchaseClient purchaseClient;
+  private final RedisService redisService;
 
   @Transactional
-  @CachePut(value = "stock", key = "#productId")
-  public Integer createOrUpdate(Long productId, Integer newStock) {
+  public Integer createOrUpdate(Long productId, Integer newInitialStock) {
     boolean exists = stockRepository.existsByProductId(productId);
 
     if (exists) {
-      return update(productId, newStock);
+      return update(productId, newInitialStock);
     } else {
-      Stock stock = Stock.builder()
+      Stock stockEntity = Stock.builder()
           .productId(productId)
-          .stock(newStock)
-          .initialStock(newStock)
+          .initialStock(newInitialStock)
           .build();
-      stockRepository.save(stock);
-      return stock.getStock();
+      stockRepository.save(stockEntity);
+
+      redisService.setValue(productId, newInitialStock, Duration.ofMinutes(5));
+      return stockEntity.getInitialStock();
     }
   }
 
-  private Integer update(Long productId, Integer newStock) {
-    Stock stock = loadStock(productId);
-
-    stock.updateInitialStock(newStock);
-    stock.updateStock(calculateStock(productId, newStock));
-
-    stockRepository.save(stock);
-    return stock.getStock();
-  }
-
-  @Transactional
-  @CachePut(value = "stock", key = "#productId")
-  public Integer increaseStock(Long productId, Integer quantity) {
-    Stock stock = loadStock(productId);
-    stock.increase(quantity);
-
-    if (stock.getInitialStock() < stock.getStock()) {
-      throw new CustomException(ErrorCode.LIMIT_OF_STOCK);
+  private Integer update(Long productId, Integer newInitialStock) {
+    Integer newStock = calculateStock(productId, newInitialStock);
+    if (newInitialStock <= newStock) {
+      throw new CustomException(ErrorCode.INVALID_NEW_STOCK);
     }
 
-    stockRepository.save(stock);
-    return stock.getStock();
+    Stock stockEntity = loadStock(productId);
+    stockEntity.updateInitialStock(newInitialStock);
+    stockRepository.save(stockEntity);
+
+    redisService.setValue(productId, newStock, Duration.ofMinutes(5));
+    return newStock;
   }
 
   @Transactional
-  @CachePut(value = "stock", key = "#productId")
-  public Integer decreaseStock(Long productId, Integer quantity) {
-    Stock stock = loadStock(productId);
+  public void increaseStock(Long productId, Integer quantity) {
+    synchronized (this) {
+      Stock stockEntity = loadStock(productId);
+      Integer currStock = getStock(productId);
 
-    if (stock.getStock() < quantity) {
-      throw new CustomException(ErrorCode.OUT_OF_STOCK);
+      if (stockEntity.getInitialStock() < currStock + quantity) {
+        throw new CustomException(ErrorCode.LIMIT_OF_STOCK);
+      }
+
+      redisService.increase(productId, quantity);
     }
+  }
 
-    stock.decrease(quantity);
+  @Transactional
+  public void decreaseStock(Long productId, Integer quantity) {
+    synchronized (this) {
+      if (getStock(productId) < quantity) {
+        throw new CustomException(ErrorCode.OUT_OF_STOCK);
+      }
 
-    stockRepository.save(stock);
-    return stock.getStock();
+      redisService.decrease(productId, quantity);
+    }
   }
 
   private Stock loadStock(Long productId) {
@@ -80,22 +82,27 @@ public class StockService {
         .orElseThrow(() -> new CustomException(ErrorCode.STOCK_NOT_FOUND));
   }
 
-  @Transactional(readOnly = true)
-  @Cacheable(value = "stock", key = "#productId")
   public Integer getStock(Long productId) {
-    Stock stock = loadStock(productId);
-    return stock.getStock();
+    if (redisService.keyExists(productId)) {
+      return redisService.getValue(productId);
+    }
+
+    Stock stockEntity = loadStock(productId);
+    Integer stock = calculateStock(productId, stockEntity.getInitialStock());
+    redisService.setValue(productId, stock, Duration.ofMinutes(5));
+
+    return stock;
   }
 
-  private Integer calculateStock(Long productId, Integer newStock) {
+  private Integer calculateStock(Long productId, Integer newInitialStock) {
     // purchase_service에 결제 프로세스 진입한 주문들의 quantity 합 요청
     Integer quantitySum = purchaseClient.getQuantitySumByProductId(productId);
 
-    if (newStock < quantitySum) {
+    if (newInitialStock < quantitySum) {
       throw new CustomException(ErrorCode.INVALID_NEW_STOCK);
     }
 
-    return newStock - quantitySum;
+    return newInitialStock - quantitySum;
   }
 
 }

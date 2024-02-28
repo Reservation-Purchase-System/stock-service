@@ -10,6 +10,4 @@ public interface StockRepository extends JpaRepository<Stock, Long> {
 
   boolean existsByProductId(Long productId);
 
-  void deleteByProductId(Long productId);
-
 }
