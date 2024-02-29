@@ -7,7 +7,6 @@ import com.nayoon.stock_service.entity.Stock;
 import com.nayoon.stock_service.repository.StockRepository;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +53,6 @@ public class StockService {
   }
 
   @Transactional
-  @Synchronized
   public void increaseStock(Long productId, Integer quantity) {
     Stock stockEntity = loadStock(productId);
     Integer currStock = getStock(productId);
@@ -62,10 +60,11 @@ public class StockService {
     if (stockEntity.getInitialStock() < currStock + quantity) {
       throw new CustomException(ErrorCode.LIMIT_OF_STOCK);
     }
+
+    redisService.increase(productId, quantity);
   }
 
   @Transactional
-  @Synchronized
   public void decreaseStock(Long productId, Integer quantity) {
     if (getStock(productId) < quantity) {
       throw new CustomException(ErrorCode.OUT_OF_STOCK);
@@ -87,6 +86,7 @@ public class StockService {
     Stock stockEntity = loadStock(productId);
     Integer stock = calculateStock(productId, stockEntity.getInitialStock());
     redisService.setValue(productId, stock, Duration.ofMinutes(5));
+
     return stock;
   }
 

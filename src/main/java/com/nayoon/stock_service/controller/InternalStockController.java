@@ -3,7 +3,6 @@ package com.nayoon.stock_service.controller;
 import com.nayoon.stock_service.common.lock.StockLock;
 import com.nayoon.stock_service.service.StockService;
 import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
