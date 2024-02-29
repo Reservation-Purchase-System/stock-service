@@ -22,7 +22,7 @@ public class StockLockAspect {
 
     RLock lock = redissonClient.getLock(String.format("stock:productId:%d", productId));
     try {
-      boolean available = lock.tryLock(10, TimeUnit.SECONDS);
+      boolean available = lock.tryLock(100, 10, TimeUnit.SECONDS);
       if (!available) {
         throw new RuntimeException("Failed to acquire lock for product: " + productId);
       }

@@ -54,27 +54,23 @@ public class StockService {
 
   @Transactional
   public void increaseStock(Long productId, Integer quantity) {
-    synchronized (this) {
-      Stock stockEntity = loadStock(productId);
-      Integer currStock = getStock(productId);
+    Stock stockEntity = loadStock(productId);
+    Integer currStock = getStock(productId);
 
-      if (stockEntity.getInitialStock() < currStock + quantity) {
-        throw new CustomException(ErrorCode.LIMIT_OF_STOCK);
-      }
-
-      redisService.increase(productId, quantity);
+    if (stockEntity.getInitialStock() < currStock + quantity) {
+      throw new CustomException(ErrorCode.LIMIT_OF_STOCK);
     }
+
+    redisService.increase(productId, quantity);
   }
 
   @Transactional
   public void decreaseStock(Long productId, Integer quantity) {
-    synchronized (this) {
-      if (getStock(productId) < quantity) {
-        throw new CustomException(ErrorCode.OUT_OF_STOCK);
-      }
-
-      redisService.decrease(productId, quantity);
+    if (getStock(productId) < quantity) {
+      throw new CustomException(ErrorCode.OUT_OF_STOCK);
     }
+
+    redisService.decrease(productId, quantity);
   }
 
   private Stock loadStock(Long productId) {

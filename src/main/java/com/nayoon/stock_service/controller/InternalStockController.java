@@ -35,7 +35,7 @@ public class InternalStockController {
    * 상품 재고 증가
    */
   @PutMapping("/increase")
-//  @StockLock
+  @StockLock
   public ResponseEntity<Void> increaseProductStock(
       @RequestParam(name = "id") Long productId,
       @RequestParam(name = "quantity") Integer quantity
@@ -48,7 +48,7 @@ public class InternalStockController {
    * 상품 재고 감소
    */
   @PutMapping("/decrease")
-//  @StockLock
+  @StockLock
   public ResponseEntity<Void> decreaseProductStock(
       @RequestParam(name = "id") Long productId,
       @RequestParam(name = "quantity") Integer quantity
