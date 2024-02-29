@@ -13,6 +13,7 @@ import com.nayoon.stock_service.common.exception.ErrorCode;
 import com.nayoon.stock_service.entity.Stock;
 import com.nayoon.stock_service.repository.StockRepository;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
